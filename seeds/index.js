@@ -1,30 +1,35 @@
 import {pool} from "../server/database/pool.js";
 
-import { CreateUsersTable } from "./1698688837677-create-users-table.js";
-const migrationsToRun = [CreateUsersTable];
+import { AddUsers } from "./1698688837678-add-users.js";
+const seedsToRun = [AddUsers];
 
-async function setupMigrations() {
-    await createMigrationsTable();
-    await runMigrations();
+async function setupSeeds() {
+    console.log('Seeding: Started ⏳ ...');
+    await createSeedsTable();
+    await runSeeds();
+    console.log('Seeding: Finished ✔️');
 }
 
-async function createMigrationsTable() {
+async function createSeedsTable() {
     await pool.query(`
-        CREATE TABLE IF NOT EXISTS migrations (
+        CREATE TABLE IF NOT EXISTS seeds (
             id SERIAL PRIMARY KEY,
             timestamp BIGINT NOT NULL, 
-            name VARCHAR NOT NULL,
+            name VARCHAR NOT NULL UNIQUE,
             created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
         )
     `)
 }
-async function runMigrations() {
-    for(const migrationItem of migrationsToRun) {
+async function runSeeds() {
+    for(const seedItem of seedsToRun) {
         const client = await pool.connect()
         try {
+            if (await seedItem.isExecuted(client)) {
+                return
+            }
             await client.query('BEGIN')
-            await migrationItem.up(client);
-            await addMigrationRow(client, migrationItem.info);
+            await seedItem.up(client);
+            await addSeedRow(client, seedItem.info);
             await client.query('COMMIT');
         } catch (err) {
             await client.query('ROLLBACK');
@@ -35,8 +40,8 @@ async function runMigrations() {
     }
 }
 
-async function addMigrationRow(client, info) {
-    return client.query(`INSERT INTO migrations (timestamp, name) VALUES($1, $2)`, [info.timestamp, info.name])
+async function addSeedRow(client, info) {
+    return client.query(`INSERT INTO seeds (timestamp, name) VALUES($1, $2)`, [info.timestamp, info.name])
 }
 
-export { setupMigrations }
+export { setupSeeds }
